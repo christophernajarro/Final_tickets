@@ -5,6 +5,9 @@ import schemas
 def get_tickets(db: Session, skip: int = 0, limit: int = 10):
     return db.query(models.Ticket).offset(skip).limit(limit).all()
 
+def get_ticket(db: Session, ticket_id: int):
+    return db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+
 def create_ticket(db: Session, ticket: schemas.TicketCreate):
     db_ticket = models.Ticket(**ticket.dict())
     db.add(db_ticket)

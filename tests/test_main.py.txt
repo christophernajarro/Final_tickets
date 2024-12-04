@@ -1,0 +1,115 @@
+import pytest
+from httpx import AsyncClient
+from main import app
+from database import Base, engine, SessionLocal
+import models
+import asyncio
+
+@pytest.fixture(scope="module")
+def anyio_backend():
+    return 'asyncio'
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_db():
+    # Crear las tablas antes de las pruebas
+    Base.metadata.create_all(bind=engine)
+    yield
+    # Eliminar las tablas después de las pruebas
+    Base.metadata.drop_all(bind=engine)
+
+@pytest.mark.anyio
+async def test_create_ticket():
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        ticket_data = {
+            "concert_name": "Concierto de Rock",
+            "user_name": "Juan Pérez",
+            "status": "available"
+        }
+        response = await ac.post("/tickets/", json=ticket_data)
+    assert response.status_code == 200
+    assert response.json()["concert_name"] == "Concierto de Rock"
+    assert response.json()["user_name"] == "Juan Pérez"
+    assert response.json()["status"] == "available"
+
+@pytest.mark.anyio
+async def test_read_tickets():
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        # Primero, crea algunos tickets
+        tickets = [
+            {"concert_name": "Concierto de Jazz", "user_name": "María Gómez", "status": "reserved"},
+            {"concert_name": "Concierto de Pop", "user_name": "Luis Martínez", "status": "purchased"},
+        ]
+        for ticket in tickets:
+            await ac.post("/tickets/", json=ticket)
+        
+        # Luego, obtiene la lista de tickets
+        response = await ac.get("/tickets/")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert len(response.json()) >= 2  # Al menos los dos tickets creados
+
+@pytest.mark.anyio
+async def test_read_ticket():
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        # Primero, crea un ticket
+        ticket_data = {
+            "concert_name": "Concierto de Electrónica",
+            "user_name": "Ana López",
+            "status": "available"
+        }
+        create_response = await ac.post("/tickets/", json=ticket_data)
+        ticket_id = create_response.json()["id"]
+
+        # Luego, obtiene el ticket por ID
+        get_response = await ac.get(f"/tickets/{ticket_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["id"] == ticket_id
+    assert get_response.json()["concert_name"] == "Concierto de Electrónica"
+    assert get_response.json()["user_name"] == "Ana López"
+    assert get_response.json()["status"] == "available"
+
+@pytest.mark.anyio
+async def test_update_ticket():
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        # Crea un ticket
+        ticket_data = {
+            "concert_name": "Concierto de Clásica",
+            "user_name": "Pedro Sánchez",
+            "status": "available"
+        }
+        create_response = await ac.post("/tickets/", json=ticket_data)
+        ticket_id = create_response.json()["id"]
+
+        # Actualiza el ticket
+        update_data = {
+            "concert_name": "Concierto de Clásica Actualizado",
+            "user_name": "Pedro Sánchez",
+            "status": "reserved"
+        }
+        update_response = await ac.put(f"/tickets/{ticket_id}", json=update_data)
+    assert update_response.status_code == 200
+    assert update_response.json()["concert_name"] == "Concierto de Clásica Actualizado"
+    assert update_response.json()["status"] == "reserved"
+
+@pytest.mark.anyio
+async def test_delete_ticket():
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        # Crea un ticket
+        ticket_data = {
+            "concert_name": "Concierto de Reggae",
+            "user_name": "Laura Fernández",
+            "status": "available"
+        }
+        create_response = await ac.post("/tickets/", json=ticket_data)
+        ticket_id = create_response.json()["id"]
+
+        # Elimina el ticket
+        delete_response = await ac.delete(f"/tickets/{ticket_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["detail"] == "Ticket eliminado"
+
+    # Verifica que el ticket ya no existe
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        get_response = await ac.get(f"/tickets/{ticket_id}")
+    assert get_response.status_code == 404
+    assert get_response.json()["detail"] == "Ticket no encontrado"

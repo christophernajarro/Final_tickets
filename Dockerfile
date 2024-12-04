@@ -10,6 +10,9 @@ COPY requirements.txt .
 # Install the required packages
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create logs directory
+RUN mkdir -p /app/logs
+
 # Copy the rest of the application code
 COPY . .
 
@@ -19,5 +22,5 @@ EXPOSE 8000
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the wait script, apply migrations, then start the application
+CMD ["sh", "-c", "python wait_for_db.py && alembic revision --autogenerate -m 'Initial migration' && alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"]
