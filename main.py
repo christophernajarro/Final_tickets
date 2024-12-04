@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 
 # Disable create_all since Alembic handles migrations
-# models.Base.metadata.create_all(bind=engine)
+models.Base.metadata.create_all(bind=engine)
 print("Tables will be created via Alembic migrations.")
 
 app = FastAPI()
